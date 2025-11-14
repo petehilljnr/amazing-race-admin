@@ -61,7 +61,7 @@ const Scores = () => {
               
               if (submission.status === "correct") {
                 allTeams[teamId].totalCorrect++;
-                allTeams[teamId].totalPoints += submission.taskPoints;
+                allTeams[teamId].totalPoints += parseInt(submission.taskPoints);
               } else if (submission.status === "pending") {
                 allTeams[teamId].totalPending++;
               }

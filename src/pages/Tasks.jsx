@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Container, Card, Row, Col, Spinner, Button } from "react-bootstrap";
+import { Container, Table, Spinner, Button, Badge, Form, InputGroup } from "react-bootstrap";
 import { useTasks } from "../fetch/taskFetch";
 import { useDeleteTask } from "../fetch/taskFetch";
 import DeleteTaskModal from "../components/tasks/DeleteTaskModal";
@@ -15,6 +15,65 @@ const Tasks = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState(null);
   const [taskToDelete, setTaskToDelete] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+
+  // Sort function
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  // Get sort icon
+  const getSortIcon = (columnKey) => {
+    if (sortConfig.key === columnKey) {
+      return sortConfig.direction === 'asc' ? ' ▲' : ' ▼';
+    }
+    return ' ↕';
+  };
+
+  // Filter and sort tasks
+  let filteredTasks = tasks.filter(task => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      (task.name && task.name.toLowerCase().includes(searchLower)) ||
+      (task.description && task.description.toLowerCase().includes(searchLower)) ||
+      (task.rowID && task.rowID.toString().includes(searchTerm)) ||
+      (task.category && task.category.toLowerCase().includes(searchLower))
+    );
+  });
+
+  // Apply sorting
+  if (sortConfig.key) {
+    filteredTasks.sort((a, b) => {
+      let aValue = a[sortConfig.key];
+      let bValue = b[sortConfig.key];
+
+      // Handle different data types
+      if (sortConfig.key === 'rowID' || sortConfig.key === 'points') {
+        aValue = Number(aValue) || 0;
+        bValue = Number(bValue) || 0;
+      } else if (sortConfig.key === 'isActive' || sortConfig.key === 'hasGPS') {
+        aValue = Boolean(aValue);
+        bValue = Boolean(bValue);
+      } else {
+        aValue = String(aValue || '').toLowerCase();
+        bValue = String(bValue || '').toLowerCase();
+      }
+
+      if (aValue < bValue) {
+        return sortConfig.direction === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortConfig.direction === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+  }
+
   const handleEditClick = (task) => {
     setTaskToEdit(task);
     setShowEditModal(true);
@@ -41,72 +100,141 @@ const Tasks = () => {
           Add Task
         </Button>
       </div>
+
+      {/* Search Bar */}
+      <div className="mb-3">
+        <Form.Group>
+          <InputGroup>
+            <Form.Control
+              type="text"
+              placeholder="Search tasks by name, description, row ID, or category..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+              <Button
+                variant="outline-secondary"
+                onClick={() => setSearchTerm("")}
+              >
+                Clear
+              </Button>
+            )}
+          </InputGroup>
+          {searchTerm && (
+            <Form.Text className="text-muted">
+              Showing {filteredTasks.length} of {tasks.length} tasks
+            </Form.Text>
+          )}
+        </Form.Group>
+      </div>
+
       <ToastContainer />
       {loading ? (
-        <Spinner />
-      ) : tasks.length === 0 ? (
-        <Card className="mb-3"><Card.Body>No tasks found.</Card.Body></Card>
+        <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "300px" }}>
+          <Spinner animation="border" variant="primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </Spinner>
+        </div>
+      ) : filteredTasks.length === 0 ? (
+        <div className="text-center py-5">
+          {tasks.length === 0 ? (
+            <>
+              <h5>No tasks found</h5>
+              <p className="text-muted">Click "Add Task" to create your first task.</p>
+            </>
+          ) : (
+            <>
+              <h5>No tasks match your search</h5>
+              <p className="text-muted">Try adjusting your search terms or <button className="btn btn-link p-0" onClick={() => setSearchTerm("")}>clear the search</button>.</p>
+            </>
+          )}
+        </div>
       ) : (
-        <Row xs={1} md={2} lg={3} className="g-4">
-          {tasks.map(task => (
-            <Col key={task.id}>
-                <Card className={`h-100 task-card${task.isActive === false ? ' bg-light border-secondary' : ''}`}>
-                  <Card.Header className="d-flex align-items-center gap-2" style={{ minHeight: 24 }}>
-                    {/* Show all category icons for this task (supporting multiple categories) */}
-                    {Array.isArray(task.category)
-                      ? task.category.map(cat => {
-                          const Icon = categoryIcons[cat];
-                          return Icon ? <Icon key={cat} size={22} title={cat} /> : null;
-                        })
-                      : (() => {
-                          const Icon = categoryIcons[task.category];
-                          return Icon ? <Icon size={22} title={task.category} /> : null;
-                        })()
+        <Table responsive striped hover>
+          <thead className="table-dark">
+            <tr>
+              <th 
+                style={{ cursor: 'pointer', userSelect: 'none' }}
+                onClick={() => handleSort('rowID')}
+              >
+                Row ID{getSortIcon('rowID')}
+              </th>
+              <th 
+                style={{ cursor: 'pointer', userSelect: 'none' }}
+                onClick={() => handleSort('name')}
+              >
+                Name{getSortIcon('name')}
+              </th>
+              <th 
+                style={{ cursor: 'pointer', userSelect: 'none' }}
+                onClick={() => handleSort('description')}
+              >
+                Description{getSortIcon('description')}
+              </th>
+              <th 
+                style={{ cursor: 'pointer', userSelect: 'none' }}
+                onClick={() => handleSort('answerType')}
+              >
+                Answer Type{getSortIcon('answerType')}
+              </th>
+              <th 
+                style={{ cursor: 'pointer', userSelect: 'none' }}
+                onClick={() => handleSort('points')}
+              >
+                Points{getSortIcon('points')}
+              </th>
+              <th 
+                style={{ cursor: 'pointer', userSelect: 'none' }}
+                onClick={() => handleSort('hasGPS')}
+              >
+                GPS{getSortIcon('hasGPS')}
+              </th>
+              <th 
+                style={{ cursor: 'pointer', userSelect: 'none' }}
+                onClick={() => handleSort('isActive')}
+              >
+                Status{getSortIcon('isActive')}
+              </th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredTasks.map(task => (
+              <tr key={task.id} className={task.isActive === false ? 'text-muted' : ''}>
+                <td>
+                  <Badge bg="dark">{task.rowID || '-'}</Badge>
+                </td>
+                <td>
+                  <strong>{task.name || "Untitled Task"}</strong>
+                </td>
+                <td>
+                  <div style={{ maxWidth: '300px' }}>
+                    {task.description && task.description.length > 100
+                      ? `${task.description.substring(0, 100)}...`
+                      : task.description || 'No description'
                     }
-                  </Card.Header>
-                  {task.photoUrl && (
-                    <Card.Img 
-                      variant="top" 
-                      src={task.photoUrl} 
-                      style={task.isActive === false ? {
-                        width: '100%',
-                        height: '180px',
-                        objectFit: 'contain',
-                        borderTopLeftRadius: '0.5rem',
-                        borderTopRightRadius: '0.5rem',
-                        opacity: 0.6,
-                        filter: 'grayscale(80%)',
-                      } : {
-                        width: '100%',
-                        height: '180px',
-                        objectFit: 'contain',
-                        borderTopLeftRadius: '0.5rem',
-                        borderTopRightRadius: '0.5rem',
-                      }} 
-                    />
-                  )}
-                  <Card.Body className="p-2" style={task.isActive === false ? { opacity: 0.6, filter: 'grayscale(80%)', pointerEvents: 'none' } : {}}>
-                    <Card.Title className="mb-2" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
-                      {task.name || "Untitled Task"}
-                    </Card.Title>
-                    <Card.Text
-                      className="task-desc"
-                      style={{
-                        marginTop: 0,
-                        height: '60px',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        display: '-webkit-box',
-                        WebkitLineClamp: 3,
-                        WebkitBoxOrient: 'vertical',
-                        fontSize: '0.95rem',
-                        color: '#555',
-                      }}
-                    >
-                      {task.description || ''}
-                    </Card.Text>
-                  </Card.Body>
-                  <Card.Footer className="d-flex justify-content-between">
+                  </div>
+                </td>
+                <td>
+                  <Badge bg={task.answerType === 'photo' ? 'info' : 'primary'}>
+                    {task.answerType || 'text'}
+                  </Badge>
+                </td>
+                <td>
+                  <Badge bg="success">{task.points || 0}</Badge>
+                </td>
+                <td>
+                  <Badge bg={task.hasGPS ? 'warning' : 'secondary'}>
+                    {task.hasGPS ? 'GPS' : 'No GPS'}
+                  </Badge>
+                </td>
+                <td>
+                  <Badge bg={task.isActive !== false ? 'success' : 'secondary'}>
+                    {task.isActive !== false ? 'Active' : 'Inactive'}
+                  </Badge>
+                </td>
+                <td>
+                  <div className="d-flex gap-1">
                     <Button 
                       variant="outline-primary" 
                       size="sm" 
@@ -122,7 +250,14 @@ const Tasks = () => {
                     >
                       Delete
                     </Button>
-                  </Card.Footer>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      )}
+      
       {/* Edit Task Modal */}
       <EditTaskModal
         show={showEditModal}
@@ -132,15 +267,12 @@ const Tasks = () => {
         }}
         task={taskToEdit}
       />
-                </Card>
-            </Col>
-          ))}
-        </Row>
-      )}
+      
       <AddTaskModal
         show={showModal}
         handleClose={() => setShowModal(false)}
       />
+      
       <DeleteTaskModal
         show={showDeleteModal}
         handleClose={() => {
